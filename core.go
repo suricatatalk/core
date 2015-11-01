@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"log"
 	"net/http"
@@ -10,8 +11,9 @@ import (
 )
 
 var (
-	mongo   DataStorage
-	commMan EventManager
+	mongo    DataStorage
+	commMan  EventManager
+	notifier Notifier
 )
 
 var wsupgrader = websocket.Upgrader{
@@ -26,25 +28,44 @@ func main() {
 	mongo = NewMgoStorage()
 	mongo.OpenSession()
 
-	commMan = NewEventManager()
+	eventConnManager := NewEventManager()
+	commMan = eventConnManager
+	notifier = eventConnManager
 	err := mongo.OpenSession()
 	if err != nil {
 		log.Panic(err)
 	}
 
+	r.POST("/question/:questionID", voteQuestion)
 	r.POST("/question", postQuestion)
-	r.GET("/event/:eventtoken", eventEndpoint)
+	r.GET("/event/:eventtoken", eventWebsockHandler)
 	r.Run("localhost:8888")
 }
 
-func eventEndpoint(c *gin.Context) {
-	eventId := c.Params.ByName("eventtoken")
+func eventWebsockHandler(c *gin.Context) {
+	eventID := c.Params.ByName("eventtoken")
 	conn, err := wsupgrader.Upgrade(c.Writer, c.Request, nil)
 	if err != nil {
 		fmt.Println("Failed to set websocket upgrade: %+v", err)
 		return
 	}
-	commMan.RegisterConnection(eventId, conn)
+	commMan.RegisterConnection(eventID, conn)
+}
+
+func voteQuestion(c *gin.Context) {
+	questionID := c.Params.ByName("questionID")
+	err := mongo.VoteQuestion(questionID)
+	if err != nil {
+		c.JSON(405, "Event not exist")
+		return
+	}
+	q, qerr := mongo.QuestionById(questionID)
+	if qerr != nil {
+		c.JSON(405, "Event not exist")
+		return
+	}
+	notifyChange(q.EventToken)
+	c.JSON(200, "OK")
 }
 
 func postQuestion(c *gin.Context) {
@@ -62,19 +83,19 @@ func postQuestion(c *gin.Context) {
 		return
 	}
 	mongo.InsertQuestion(question)
-	sendUpdate(question.EventToken)
+	notifyChange(question.EventToken)
 	c.JSON(200, "OK")
 }
 
-func sendUpdate(eventId string) error {
-	connections := commMan.GetConnByEvent(eventId)
-	questions, err := mongo.QuestionsByEvent(eventId)
+func notifyChange(eventtoken string) error {
+	questions, err := mongo.QuestionsByEvent(eventtoken)
 	if err != nil {
 		return err
 	}
-
-	for _, conn := range connections {
-		conn.WriteJSON(questions)
+	errSlice := notifier.SendJsonByEventID(eventtoken, questions)
+	if len(errSlice) == 0 {
+		return nil
+	} else {
+		return errors.New("Err while sending update")
 	}
-	return nil
 }

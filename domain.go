@@ -7,12 +7,19 @@ import (
 	"gopkg.in/mgo.v2/bson"
 )
 
+type Vote struct {
+	Client    string
+	VoteTime  time.Time
+	Operation int
+}
+
 type Question struct {
 	ID          bson.ObjectId `bson:"_id"`
 	SessionName string
 	EventToken  string
 	Question    string
 	Vote        int
+	CreateTime  time.Time
 }
 
 // type Session struct {
@@ -36,11 +43,12 @@ type DataStorage interface {
 	CloseSession()
 	InsertEvent(event *Event) error
 	UpdateEvent(event *Event) error
-	DeleteEvent(eventId string) error
+	DeleteEvent(eventID string) error
 	EventByToken(token string) (*Event, error)
 	InsertQuestion(question *Question) error
-	VoteQuestion(questionId string) error
-	QuestionsByEvent(eventId string) ([]Question, error)
+	QuestionById(questionID string) (*Question, error)
+	VoteQuestion(questionID string) error
+	QuestionsByEvent(eventID string) ([]Question, error)
 }
 
 type MgoDataStorage struct {
@@ -118,7 +126,13 @@ func (m *MgoDataStorage) InsertQuestion(question *Question) error {
 }
 
 func (m *MgoDataStorage) VoteQuestion(questionId string) error {
-	return m.mgoQuestions.UpdateId(questionId, bson.M{"$inc": bson.M{"vote": 1}})
+	return m.mgoQuestions.UpdateId(bson.ObjectIdHex(questionId), bson.M{"$inc": bson.M{"vote": 1}})
+}
+
+func (m *MgoDataStorage) QuestionById(questionID string) (*Question, error) {
+	result := &Question{}
+	err := m.mgoQuestions.FindId(bson.ObjectIdHex(questionID)).One(result)
+	return result, err
 }
 
 func (m *MgoDataStorage) QuestionsByEvent(eventToken string) ([]Question, error) {

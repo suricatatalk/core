@@ -6,7 +6,7 @@ import (
 	"github.com/gorilla/websocket"
 )
 
-func TestEmptySlice(t *testing.T) {
+func TestMapManager(t *testing.T) {
 
 	eventId := "abcd234"
 	conn := &websocket.Conn{}

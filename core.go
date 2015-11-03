@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"os"
 
 	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"
@@ -25,7 +26,15 @@ var wsupgrader = websocket.Upgrader{
 func main() {
 	r := gin.Default()
 
-	mongo = NewMgoStorage()
+	mgoStorage := NewMgoStorage()
+	connString := fmt.Sprintf("mongodb://%s:%s@%s:%s",
+		os.Getenv("MONGODB_ADDON_USER"),
+		os.Getenv("MONGODB_ADDON_PASSWORD"),
+		os.Getenv("MONGODB_ADDON_HOST"),
+		os.Getenv("MONGODB_ADDON_PORT"))
+	mgoStorage.connectionString = connString
+	mgoStorage.database = os.Getenv("MONGODB_ADDON_DB")
+	mongo = mgoStorage
 	mongo.OpenSession()
 
 	eventConnManager := NewEventManager()

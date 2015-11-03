@@ -27,12 +27,7 @@ func main() {
 	r := gin.Default()
 
 	mgoStorage := NewMgoStorage()
-	connString := fmt.Sprintf("mongodb://%s:%s@%s:%s",
-		os.Getenv("MONGODB_ADDON_USER"),
-		os.Getenv("MONGODB_ADDON_PASSWORD"),
-		os.Getenv("MONGODB_ADDON_HOST"),
-		os.Getenv("MONGODB_ADDON_PORT"))
-	mgoStorage.connectionString = connString
+	mgoStorage.connectionString = os.Getenv("MONGODB_ADDON_URI")
 	mgoStorage.database = os.Getenv("MONGODB_ADDON_DB")
 	mongo = mgoStorage
 	mongo.OpenSession()

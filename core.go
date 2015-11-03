@@ -43,7 +43,8 @@ func main() {
 	r.POST("/question/:questionID", voteQuestion)
 	r.POST("/question", postQuestion)
 	r.GET("/event/:eventtoken", eventWebsockHandler)
-	r.Run("localhost:8080")
+	bind := fmt.Sprintf("0.0.0.0:%s", os.Getenv("PORT"))
+	r.Run(bind)
 }
 
 func eventWebsockHandler(c *gin.Context) {

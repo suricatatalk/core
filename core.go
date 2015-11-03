@@ -39,7 +39,7 @@ func main() {
 	r.POST("/question/:questionID", voteQuestion)
 	r.POST("/question", postQuestion)
 	r.GET("/event/:eventtoken", eventWebsockHandler)
-	r.Run("localhost:8888")
+	r.Run("localhost:8080")
 }
 
 func eventWebsockHandler(c *gin.Context) {

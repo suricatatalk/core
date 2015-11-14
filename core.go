@@ -40,21 +40,30 @@ func main() {
 		log.Panic(err)
 	}
 
+	//Public
 	r.POST("/question/:questionID", voteQuestion)
 	r.POST("/question", postQuestion)
-	r.GET("/event/:eventtoken", eventWebsockHandler)
+	r.GET("/event/:eventtoken/:session", eventWebsockHandler)
+	r.GET("/event/:eventtoken", getEvent)
+
+	//Admin
+	r.POST("/event", putEvent)
+
 	bind := fmt.Sprintf("0.0.0.0:%s", os.Getenv("PORT"))
 	r.Run(bind)
 }
 
 func eventWebsockHandler(c *gin.Context) {
-	eventID := c.Params.ByName("eventtoken")
+	eventToken := c.Params.ByName("eventtoken")
+	sessitonToken := c.Params.ByName("session")
+
 	conn, err := wsupgrader.Upgrade(c.Writer, c.Request, nil)
 	if err != nil {
 		fmt.Println("Failed to set websocket upgrade: %+v", err)
 		return
 	}
-	commMan.RegisterConnection(eventID, conn)
+
+	commMan.RegisterConnection(eventToken, sessitonToken, conn)
 }
 
 func voteQuestion(c *gin.Context) {
@@ -69,7 +78,7 @@ func voteQuestion(c *gin.Context) {
 		c.JSON(405, "Event not exist")
 		return
 	}
-	notifyChange(q.EventToken)
+	notifyChange(q.EventToken, q.SessionToken)
 	c.JSON(200, "OK")
 }
 
@@ -88,19 +97,46 @@ func postQuestion(c *gin.Context) {
 		return
 	}
 	mongo.InsertQuestion(question)
-	notifyChange(question.EventToken)
+	notifyChange(question.EventToken, question.SessionToken)
 	c.JSON(200, "OK")
 }
 
-func notifyChange(eventtoken string) error {
-	questions, err := mongo.QuestionsByEvent(eventtoken)
+func notifyChange(eventToken, sessionToken string) error {
+	questions, err := mongo.QuestionsByEventAndSession(eventToken, sessionToken)
 	if err != nil {
 		return err
 	}
-	errSlice := notifier.SendJsonByEventID(eventtoken, questions)
+	errSlice := notifier.SendJsonByEventAndSessionToken(eventToken, sessionToken, questions)
 	if len(errSlice) == 0 {
 		return nil
 	} else {
 		return errors.New("Err while sending update")
 	}
+}
+
+func putEvent(c *gin.Context) {
+	event := &Event{}
+	err := c.BindJSON(event)
+	if err != nil {
+		log.Println(err)
+		c.JSON(http.StatusBadRequest, "Malformed json object")
+		return
+	}
+	err = mongo.InsertEvent(event)
+	if err != nil {
+		log.Println(err)
+		c.JSON(http.StatusInternalServerError, "Cannot import event")
+		return
+	}
+	c.JSON(http.StatusOK, event)
+}
+
+func getEvent(c *gin.Context) {
+	eventToken := c.Params.ByName("eventtoken")
+	event, err := mongo.EventByToken(eventToken)
+	if err != nil {
+		c.JSON(405, "Event not exist")
+		return
+	}
+	c.JSON(200, event)
 }

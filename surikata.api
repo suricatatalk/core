@@ -29,6 +29,9 @@ GET /event/all?token=ABce456
 #Event detail
 GET /event/{id}?token=
 
+#Event live websocket
+/event/{token}/{session}
+
 #Room detail
 GET /room/{id}?token=
 
@@ -55,5 +58,9 @@ PUT /question/{id}
 
 #Delete question
 DELETE /question/{id}
+
+
+
+
 
 

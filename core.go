@@ -9,12 +9,20 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"
+	"github.com/sohlich/etcd_registry"
 )
 
 var (
-	mongo    DataStorage
-	commMan  EventManager
-	notifier Notifier
+	mongo          DataStorage
+	commMan        EventManager
+	notifier       Notifier
+	registryConfig registry.EtcdRegistryConfig = registry.EtcdRegistryConfig{
+		EtcdEndpoints: []string{"http://127.0.0.1:4001"},
+		ServiceName:   "core",
+		InstanceName:  "core1",
+		BaseUrl:       "127.0.0.1:8080",
+	}
+	registryClient *registry.EtcdReigistryClient
 )
 
 var wsupgrader = websocket.Upgrader{
@@ -24,6 +32,14 @@ var wsupgrader = websocket.Upgrader{
 }
 
 func main() {
+	var registryErr error
+	registryClient, registryErr = registry.New(registryConfig)
+	if registryErr != nil {
+		log.Panic(registryErr)
+	}
+
+	registryClient.Register()
+
 	r := gin.Default()
 
 	mgoStorage := NewMgoStorage()
@@ -47,7 +63,8 @@ func main() {
 	r.GET("/event/:eventtoken", getEvent)
 
 	//Admin
-	r.POST("/event", putEvent)
+	r.POST("/event", upsertEvent(insertEvent))
+	r.PUT("/event", upsertEvent(updateEvent))
 
 	bind := fmt.Sprintf("0.0.0.0:%s", os.Getenv("PORT"))
 	r.Run(bind)
@@ -114,18 +131,36 @@ func notifyChange(eventToken, sessionToken string) error {
 	}
 }
 
-func putEvent(c *gin.Context) {
-	event := &Event{}
-	err := c.BindJSON(event)
-	if err != nil {
-		log.Println(err)
-		c.JSON(http.StatusBadRequest, "Malformed json object")
-		return
+type eventHandlerFunc func(c *gin.Context, event *Event)
+
+func upsertEvent(handler eventHandlerFunc) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		event := &Event{}
+		err := c.BindJSON(event)
+		if err != nil {
+			log.Println(err)
+			c.JSON(http.StatusBadRequest, "Malformed json object")
+			return
+		}
+		handler(c, event)
 	}
-	err = mongo.InsertEvent(event)
+}
+
+func insertEvent(c *gin.Context, event *Event) {
+	err := mongo.InsertEvent(event)
 	if err != nil {
 		log.Println(err)
 		c.JSON(http.StatusInternalServerError, "Cannot import event")
+		return
+	}
+	c.JSON(http.StatusOK, event)
+}
+
+func updateEvent(c *gin.Context, event *Event) {
+	err := mongo.UpdateEvent(event)
+	if err != nil {
+		log.Println(err)
+		c.JSON(http.StatusInternalServerError, "Cannot update event")
 		return
 	}
 	c.JSON(http.StatusOK, event)

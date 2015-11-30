@@ -3,26 +3,37 @@ package main
 import (
 	"errors"
 	"fmt"
-	"log"
 	"net/http"
-	"os"
 
+	"github.com/Sirupsen/logrus"
 	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"
-	"github.com/sohlich/etcd_registry"
+	"github.com/sohlich/etcd_discovery"
+)
+
+const (
+	ServiceName = "core"
+	TokenHeader = "X-AUTH"
+
+	//Configuration keys
+	KeyCoreHost     = "CORE_HOST"
+	KeyCorePort     = "CORE_PORT"
+	KeyCoreName     = "CORE_NAME"
+	KeyMongoURI     = "MONGODB_URI"
+	KeyMongoDB      = "MONGODB_DB"
+	KeyETCDEndpoint = "ETCD_ENDPOINT"
+	KeyLogly        = "LOGLY_TOKEN"
 )
 
 var (
+	log            *logrus.Logger = logrus.StandardLogger()
 	mongo          DataStorage
 	commMan        EventManager
 	notifier       Notifier
-	registryConfig registry.EtcdRegistryConfig = registry.EtcdRegistryConfig{
-		EtcdEndpoints: []string{"http://127.0.0.1:4001"},
-		ServiceName:   "core",
-		InstanceName:  "core1",
-		BaseUrl:       "127.0.0.1:8080",
+	registryConfig discovery.EtcdRegistryConfig = discovery.EtcdRegistryConfig{
+		ServiceName: ServiceName,
 	}
-	registryClient *registry.EtcdReigistryClient
+	registryClient *discovery.EtcdReigistryClient
 )
 
 var wsupgrader = websocket.Upgrader{
@@ -32,28 +43,37 @@ var wsupgrader = websocket.Upgrader{
 }
 
 func main() {
+
+	// Load all configuration
+	appCfg := &AppConfig{}
+	mgoCfg := &MgoConfig{}
+	etcdCfg := &EtcdConfig{}
+	loadConfiguration(appCfg, mgoCfg, etcdCfg)
+
 	var registryErr error
-	registryClient, registryErr = registry.New(registryConfig)
+	log.Infoln("Initializing service discovery client for %s", appCfg.Name)
+	registryConfig.InstanceName = appCfg.Name
+	registryConfig.BaseURL = fmt.Sprintf("%s:%s", appCfg.Host, appCfg.Port)
+	registryConfig.EtcdEndpoints = []string{etcdCfg.Endpoint}
+	registryClient, registryErr = discovery.New(registryConfig)
 	if registryErr != nil {
 		log.Panic(registryErr)
 	}
-
 	registryClient.Register()
 
 	r := gin.Default()
-
-	mgoStorage := NewMgoStorage()
-	mgoStorage.connectionString = os.Getenv("MONGODB_ADDON_URI")
-	mgoStorage.database = os.Getenv("MONGODB_ADDON_DB")
-	mongo = mgoStorage
-	mongo.OpenSession()
+	log.Infoln("Initializing mongo storage")
+	localMgo := NewMgoStorage()
+	localMgo.connectionString = mgoCfg.URI
+	localMgo.database = mgoCfg.DB
+	mongo = localMgo
 
 	eventConnManager := NewEventManager()
 	commMan = eventConnManager
 	notifier = eventConnManager
 	err := mongo.OpenSession()
 	if err != nil {
-		log.Panic(err)
+		log.Panicln(err)
 	}
 
 	//Public
@@ -63,14 +83,17 @@ func main() {
 	r.GET("/event/:eventtoken", getEvent)
 
 	//Admin
-	r.POST("/event", upsertEvent(insertEvent))
-	r.PUT("/event", upsertEvent(updateEvent))
+	authReqi := r.Group("/")
+	authReqi.Use(authToken)
+	authReqi.POST("/event", upsertEvent(insertEvent))
+	authReqi.PUT("/event", upsertEvent(updateEvent))
 
-	bind := fmt.Sprintf("0.0.0.0:%s", os.Getenv("PORT"))
+	bind := fmt.Sprintf(":%s", appCfg.Port)
 	r.Run(bind)
 }
 
 func eventWebsockHandler(c *gin.Context) {
+	log.Printf("Receiving WS request {}", c.Request.Header)
 	eventToken := c.Params.ByName("eventtoken")
 	sessitonToken := c.Params.ByName("session")
 
@@ -135,6 +158,7 @@ type eventHandlerFunc func(c *gin.Context, event *Event)
 
 func upsertEvent(handler eventHandlerFunc) gin.HandlerFunc {
 	return func(c *gin.Context) {
+		log.Println(c.Request.Header.Get(TokenHeader))
 		event := &Event{}
 		err := c.BindJSON(event)
 		if err != nil {

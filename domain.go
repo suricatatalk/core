@@ -27,6 +27,7 @@ type Question struct {
 type Session struct {
 	Room         string
 	Name         string
+	Speaker      []string
 	SessionToken string
 	From         int64
 	To           int64
@@ -39,6 +40,16 @@ type Room struct {
 	Description string
 }
 
+type Speaker struct {
+	ID           bson.ObjectId `bson:"_id"`
+	ImageURL     string
+	FirstName    string
+	LastName     string
+	Organization string
+	URLs         []string
+	Bio          string
+}
+
 type Event struct {
 	ID         bson.ObjectId `bson:"_id"`
 	EventToken string
@@ -48,6 +59,7 @@ type Event struct {
 	CreatedBy  string
 	Rooms      []Room
 	Sessions   []Session
+	Speakers   []string
 }
 
 type EventStorage interface {
@@ -64,9 +76,17 @@ type QuestionStorage interface {
 	QuestionsByEventAndSession(eventtoken, sessionToken string) ([]Question, error)
 }
 
+type SpeakerStorage interface {
+	InsertSpeaker(s *Speaker) error
+	UpdateSpeaker(s *Speaker) error
+	SpeakerById(hexId string) (*Speaker, error)
+	SpeakersById(hexId []string) ([]*Speaker, error)
+}
+
 type DataStorage interface {
 	EventStorage
 	QuestionStorage
+	SpeakerStorage
 	OpenSession() error
 	CloseSession()
 }
@@ -76,10 +96,12 @@ type MgoDataStorage struct {
 	database         string
 	events           string
 	questions        string
+	speakers         string
 	mgoSession       *mgo.Session
 	mgoDB            *mgo.Database
 	mgoEvents        *mgo.Collection
 	mgoQuestions     *mgo.Collection
+	mgoSpeakers      *mgo.Collection
 }
 
 func NewMgoStorage() *MgoDataStorage {
@@ -88,8 +110,8 @@ func NewMgoStorage() *MgoDataStorage {
 		database:         "surikata",
 		events:           "events",
 		questions:        "questions",
+		speakers:         "speakers",
 	}
-
 }
 
 func (a *MgoDataStorage) OpenSession() error {
@@ -101,6 +123,7 @@ func (a *MgoDataStorage) OpenSession() error {
 	a.mgoDB = a.mgoSession.DB(a.database)
 	a.mgoEvents = a.mgoDB.C(a.events)
 	a.mgoQuestions = a.mgoDB.C(a.questions)
+	a.mgoSpeakers = a.mgoDB.C(a.speakers)
 
 	a.mgoEvents.EnsureIndex(mgo.Index{
 		Key:        []string{"eventtoken"},
@@ -120,6 +143,42 @@ func (a *MgoDataStorage) OpenSession() error {
 
 func (a *MgoDataStorage) CloseSession() {
 	a.mgoSession.Close()
+}
+
+func (m *MgoDataStorage) InsertSpeaker(s *Speaker) error {
+	s.ID = bson.NewObjectId()
+	return m.mgoSpeakers.Insert(s)
+}
+
+func (m *MgoDataStorage) UpdateSpeaker(s *Speaker) error {
+	_, err := m.mgoSpeakers.UpsertId(s.ID, s)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (m *MgoDataStorage) SpeakerById(hexId string) (*Speaker, error) {
+	s := &Speaker{}
+	err := m.mgoSpeakers.FindId(bson.ObjectIdHex(hexId)).One(s)
+	if err != nil {
+		return nil, err
+	}
+	return s, nil
+}
+
+func (m *MgoDataStorage) SpeakersById(hexIds []string) ([]*Speaker, error) {
+	speakers := make([]*Speaker, 0)
+	for _, id := range hexIds {
+		log.Println(id)
+		s := &Speaker{}
+		err := m.mgoSpeakers.FindId(bson.ObjectIdHex(id)).One(s)
+		if err != nil {
+			return speakers, err
+		}
+		speakers = append(speakers, s)
+	}
+	return speakers, nil
 }
 
 func (m *MgoDataStorage) InsertEvent(event *Event) error {

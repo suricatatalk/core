@@ -81,12 +81,15 @@ func main() {
 	r.POST("/question", postQuestion)
 	r.GET("/event/:eventtoken/:session", eventWebsockHandler)
 	r.GET("/event/:eventtoken", getEvent)
+	r.GET("/speaker/:speakerID", getSpeaker)
 
 	//Admin
 	authReqi := r.Group("/")
 	authReqi.Use(authToken)
 	authReqi.POST("/event", upsertEvent(insertEvent))
 	authReqi.PUT("/event", upsertEvent(updateEvent))
+	authReqi.POST("/speaker", upsertSpeaker(insertSpeaker))
+	authReqi.PUT("/speaker", upsertSpeaker(updateSpeaker))
 
 	bind := fmt.Sprintf(":%s", appCfg.Port)
 	r.Run(bind)
@@ -154,11 +157,12 @@ func notifyChange(eventToken, sessionToken string) error {
 	}
 }
 
+// Event handlers
+
 type eventHandlerFunc func(c *gin.Context, event *Event)
 
 func upsertEvent(handler eventHandlerFunc) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		log.Println(c.Request.Header.Get(TokenHeader))
 		event := &Event{}
 		err := c.BindJSON(event)
 		if err != nil {
@@ -195,6 +199,70 @@ func getEvent(c *gin.Context) {
 	event, err := mongo.EventByToken(eventToken)
 	if err != nil {
 		c.JSON(405, "Event not exist")
+		return
+	}
+
+	speakers, spErr := mongo.SpeakersById(event.Speakers)
+	if spErr != nil {
+		log.Errorln(spErr)
+		c.AbortWithStatus(500)
+		return
+	}
+
+	// Fill response with all necessary data
+	output := struct {
+		Speakers []*Speaker
+		Event    *Event
+	}{
+		speakers,
+		event,
+	}
+
+	c.JSON(200, output)
+}
+
+// Speakers handlers
+
+type speakerHandlerFunc func(c *gin.Context, speaker *Speaker)
+
+func upsertSpeaker(handler speakerHandlerFunc) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		speaker := &Speaker{}
+		err := c.BindJSON(speaker)
+		if err != nil {
+			log.Println(err)
+			c.AbortWithStatus(405)
+			return
+		}
+		handler(c, speaker)
+	}
+}
+
+func insertSpeaker(c *gin.Context, speaker *Speaker) {
+	err := mongo.InsertSpeaker(speaker)
+	if err != nil {
+		log.Println(err)
+		c.AbortWithError(500, err)
+		return
+	}
+	c.JSON(http.StatusOK, speaker)
+}
+
+func updateSpeaker(c *gin.Context, speaker *Speaker) {
+	err := mongo.UpdateSpeaker(speaker)
+	if err != nil {
+		log.Println(err)
+		c.AbortWithError(500, err)
+		return
+	}
+	c.JSON(http.StatusOK, speaker)
+}
+
+func getSpeaker(c *gin.Context) {
+	speakerID := c.Params.ByName("speakerID")
+	event, err := mongo.SpeakerById(speakerID)
+	if err != nil {
+		c.JSON(405, "Speaker not exist")
 		return
 	}
 	c.JSON(200, event)

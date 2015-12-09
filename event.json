@@ -1,0 +1,52 @@
+{
+  "speakers": [
+    {
+      "id": "565df42ae1382363934d8046",
+      "imageUrl": "",
+      "firstName": "John",
+      "lastName": "Newman",
+      "organization": "CoreOs",
+      "urls": [
+        "http://github.com",
+        "john.newman.com"
+      ],
+      "bio": "Founder of Bla Bla Startup"
+    }
+  ],
+  "event": {
+    "ID": "565df9fae13823682df57494",
+    "eventToken": "d14da96e",
+    "name": "FAI Workshoday",
+    "fromDate": 1447092856,
+    "toDate": 1447092856,
+    "createdBy": "sohlich@gmail.com",
+    "rooms": [
+      {
+        "name": "U202",
+        "tint": "",
+        "nameHash": "00ff",
+        "description": ""
+      },
+      {
+        "name": "U207",
+        "tint": "",
+        "nameHash": "4330",
+        "description": ""
+      }
+    ],
+    "sessions": [
+      {
+        "room": "U202",
+        "name": "Marcus Eiselle: Microservices revealed",
+        "speaker": [],
+        "sessionToken": "cea7",
+        "from": 1447092856,
+        "to": 1447092856,
+        "finished": false
+      }
+    ],
+    "speakers": [
+      "565df42ae1382363934d8046"
+    ]
+  }
+}

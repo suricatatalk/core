@@ -9,7 +9,7 @@ import (
 )
 
 type AppConfig struct {
-	Host string `default:"0.0.0.0"`
+	Host string `default:"127.0.0.1"`
 	Port string `default:"7070"`
 	Name string `default:"core1"`
 }
@@ -20,7 +20,7 @@ type MgoConfig struct {
 }
 
 type EtcdConfig struct {
-	Endpoint string `default:"127.0.0.1:4001"`
+	Endpoint string `default:"http://127.0.0.1:4001"`
 }
 
 // loadConfiguration loads the configuration of application
@@ -39,9 +39,9 @@ func loadConfiguration(app *AppConfig, mgo *MgoConfig, etcd *EtcdConfig) {
 	}
 	if len(os.Getenv(KeyLogly)) > 0 {
 		hook := logrusly.NewLogglyHook(os.Getenv(KeyLogly),
-			os.Getenv(KeyCoreHost),
+			app.Host,
 			logrus.InfoLevel,
-			os.Getenv(KeyCoreName))
+			app.Name)
 		logrus.AddHook(hook)
 	}
 }

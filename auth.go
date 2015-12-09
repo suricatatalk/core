@@ -13,9 +13,11 @@ func authToken(c *gin.Context) {
 		c.AbortWithStatus(401)
 		return
 	}
+	log.Infof("Getting token", token)
 
 	user, err := auth.DecodeJwtToken(token)
 	if err != nil {
+		log.Errorln(err)
 		c.AbortWithStatus(403)
 		return
 	}

@@ -16,50 +16,53 @@ type Vote struct {
 }
 
 type Question struct {
-	ID           bson.ObjectId `bson:"_id"`
-	SessionToken string
-	EventToken   string
-	Question     string
-	Vote         int
-	CreateTime   int64
+	ID           bson.ObjectId `bson:"_id" json:"id"`
+	SessionToken string        `json:"sessionToken"`
+	EventToken   string        `json:"eventToken"`
+	Question     string        `json:"question"`
+	Vote         int           `json:"vote"`
+	CreateTime   int64         `json:"createTime"`
 }
 
 type Session struct {
-	Room         string
-	Name         string
-	Speaker      []string
-	SessionToken string
-	From         int64
-	To           int64
-	Finished     bool
+	Room         string   `json:"room"`
+	Name         string   `json:"name"`
+	Speaker      []string `json:"speaker"`
+	Description  string   `json:"description"`
+	SessionToken string   `json:"sessionToken"`
+	From         int64    `json:"from"`
+	To           int64    `json:"to"`
+	Finished     bool     `json:"finished"`
 }
 
 type Room struct {
-	Name        string
-	NameHash    string
-	Description string
+	Name        string `json:"name"`
+	Tint        string `json:"tint"`
+	NameHash    string `json:"nameHash"`
+	Description string `json:"description"`
 }
 
 type Speaker struct {
-	ID           bson.ObjectId `bson:"_id"`
-	ImageURL     string
-	FirstName    string
-	LastName     string
-	Organization string
-	URLs         []string
-	Bio          string
+	ID           bson.ObjectId `bson:"_id" json:"id"`
+	ImageURL     string        `json:"imageUrl"`
+	FirstName    string        `json:"firstName"`
+	LastName     string        `json:"lastName"`
+	Organization string        `json:"organization"`
+	URLs         []string      `json:"urls"`
+	Bio          string        `json:"bio"`
 }
 
 type Event struct {
-	ID         bson.ObjectId `bson:"_id"`
-	EventToken string
-	Name       string
-	FromDate   int64
-	ToDate     int64
-	CreatedBy  string
-	Rooms      []Room
-	Sessions   []Session
-	Speakers   []string
+	ID          bson.ObjectId `bson:"_id",json:"id"`
+	EventToken  string        `json:"eventToken"`
+	Name        string        `json:"name"`
+	Description string        `json:"description"`
+	FromDate    int64         `json:"fromDate"`
+	ToDate      int64         `json:"toDate"`
+	CreatedBy   string        `json:"createdBy"`
+	Rooms       []Room        `json:"rooms"`
+	Sessions    []Session     `json:"sessions"`
+	Speakers    []string      `json:"speakers"`
 }
 
 type EventStorage interface {

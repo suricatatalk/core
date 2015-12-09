@@ -16,13 +16,7 @@ const (
 	TokenHeader = "X-AUTH"
 
 	//Configuration keys
-	KeyCoreHost     = "CORE_HOST"
-	KeyCorePort     = "CORE_PORT"
-	KeyCoreName     = "CORE_NAME"
-	KeyMongoURI     = "MONGODB_URI"
-	KeyMongoDB      = "MONGODB_DB"
-	KeyETCDEndpoint = "ETCD_ENDPOINT"
-	KeyLogly        = "LOGLY_TOKEN"
+	KeyLogly = "LOGLY_TOKEN"
 )
 
 var (
@@ -211,8 +205,8 @@ func getEvent(c *gin.Context) {
 
 	// Fill response with all necessary data
 	output := struct {
-		Speakers []*Speaker
-		Event    *Event
+		Speakers []*Speaker `json:"speakers"`
+		Event    *Event     `json:"event"`
 	}{
 		speakers,
 		event,

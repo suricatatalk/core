@@ -14,19 +14,23 @@ import (
 )
 
 const (
+	// ServiceName defines the service type
+	// that will be registered in etcd service registry
 	ServiceName = "core"
-	TokenHeader = "X-AUTH"
 
-	//Configuration keys
+	// KeyLogly is a enviromental
+	// variable for logging with loggly
 	KeyLogly = "LOGLY_TOKEN"
+
+	TokenHeader = "X-AUTH"
 )
 
 var (
-	log            *logrus.Logger = logrus.StandardLogger()
+	log            = logrus.StandardLogger()
 	mongo          DataStorage
 	commMan        EventManager
 	notifier       Notifier
-	registryConfig discovery.EtcdRegistryConfig = discovery.EtcdRegistryConfig{
+	registryConfig = discovery.EtcdRegistryConfig{
 		ServiceName: ServiceName,
 	}
 	registryClient *discovery.EtcdReigistryClient

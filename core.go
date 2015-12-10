@@ -4,10 +4,12 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"time"
 
 	"github.com/Sirupsen/logrus"
 	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"
+	"github.com/itsjamie/gin-cors"
 	"github.com/sohlich/etcd_discovery"
 )
 
@@ -69,6 +71,17 @@ func main() {
 	if err != nil {
 		log.Panicln(err)
 	}
+
+	log.Infoln("Configuring CORS Middleware")
+	r.Use(cors.Middleware(cors.Config{
+		Origins:         "*",
+		Methods:         "GET, PUT, POST, DELETE",
+		RequestHeaders:  "Origin, Authorization, Content-Type, X-AUTH",
+		ExposedHeaders:  "",
+		MaxAge:          50 * time.Second,
+		Credentials:     true,
+		ValidateHeaders: false,
+	}))
 
 	//Public
 	r.POST("/question/:questionID", voteQuestion)

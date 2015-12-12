@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 
 	"github.com/gin-gonic/gin"
-	"github.com/sohlich/surikata_auth/auth"
+	"github.com/suricatatalk/gate/auth"
 )
 
 func authToken(c *gin.Context) {

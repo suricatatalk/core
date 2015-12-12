@@ -61,7 +61,6 @@ func main() {
 	}
 	registryClient.Register()
 
-	r := gin.Default()
 	log.Infoln("Initializing mongo storage")
 	localMgo := NewMgoStorage()
 	localMgo.connectionString = mgoCfg.URI
@@ -76,7 +75,9 @@ func main() {
 		log.Panicln(err)
 	}
 
+	r := gin.Default()
 	log.Infoln("Configuring CORS Middleware")
+	r.Use(logrusLogger())
 	r.Use(cors.Middleware(cors.Config{
 		Origins:         "*",
 		Methods:         "GET, PUT, POST, DELETE",
@@ -93,7 +94,6 @@ func main() {
 	r.GET("/event/:eventtoken/:session", eventWebsockHandler)
 	r.GET("/event/:eventtoken", getEvent)
 	r.GET("/speaker/:speakerID", getSpeaker)
-
 	//Admin
 	authReqi := r.Group("/")
 	authReqi.Use(authToken)
@@ -104,6 +104,12 @@ func main() {
 
 	bind := fmt.Sprintf(":%s", appCfg.Port)
 	r.Run(bind)
+}
+
+func logrusLogger() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		log.Infof("%s:%s from %s", c.Request.Method, c.Request.URL.String(), c.Request.RemoteAddr)
+	}
 }
 
 func eventWebsockHandler(c *gin.Context) {
@@ -213,10 +219,12 @@ func getEvent(c *gin.Context) {
 		return
 	}
 
+	log.Infoln("Getting speakers fro event %s", event.ID.Hex())
 	speakers, spErr := mongo.SpeakersById(event.Speakers)
 	if spErr != nil {
-		log.Errorln(spErr)
-		c.AbortWithStatus(500)
+		humanError := fmt.Sprintf("Speaker not found reason: %s", spErr.Error())
+		log.Errorf(humanError)
+		c.JSON(500, fmt.Sprintf("Speaker not found reason: %s", spErr.Error()))
 		return
 	}
 
@@ -229,6 +237,7 @@ func getEvent(c *gin.Context) {
 		event,
 	}
 
+	log.Infoln("Event in response %v", output)
 	c.JSON(200, output)
 }
 
@@ -241,7 +250,7 @@ func upsertSpeaker(handler speakerHandlerFunc) gin.HandlerFunc {
 		speaker := &Speaker{}
 		err := c.BindJSON(speaker)
 		if err != nil {
-			log.Println(err)
+			log.Errorln(err)
 			c.AbortWithStatus(405)
 			return
 		}
@@ -252,7 +261,7 @@ func upsertSpeaker(handler speakerHandlerFunc) gin.HandlerFunc {
 func insertSpeaker(c *gin.Context, speaker *Speaker) {
 	err := mongo.InsertSpeaker(speaker)
 	if err != nil {
-		log.Println(err)
+		log.Errorln(err)
 		c.AbortWithError(500, err)
 		return
 	}
@@ -262,7 +271,7 @@ func insertSpeaker(c *gin.Context, speaker *Speaker) {
 func updateSpeaker(c *gin.Context, speaker *Speaker) {
 	err := mongo.UpdateSpeaker(speaker)
 	if err != nil {
-		log.Println(err)
+		log.Errorln(err)
 		c.AbortWithError(500, err)
 		return
 	}

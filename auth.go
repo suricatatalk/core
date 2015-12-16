@@ -17,10 +17,10 @@ func authToken(c *gin.Context) {
 
 	user, err := auth.DecodeJwtToken(token)
 	if err != nil {
-		log.Errorln(err)
+		log.Error(err)
 		c.AbortWithStatus(403)
 		return
 	}
-	userJson, _ := json.Marshal(user)
-	c.Request.Header.Set(TokenHeader, string(userJson))
+	userJSON, _ := json.Marshal(user)
+	c.Request.Header.Set(TokenHeader, string(userJSON))
 }

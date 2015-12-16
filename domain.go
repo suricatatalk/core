@@ -33,6 +33,7 @@ type Session struct {
 	From         int64    `json:"from"`
 	To           int64    `json:"to"`
 	Finished     bool     `json:"finished"`
+	HasDetail    bool     `json:"hasDetail"`
 }
 
 type Room struct {
@@ -173,7 +174,6 @@ func (m *MgoDataStorage) SpeakerById(hexId string) (*Speaker, error) {
 func (m *MgoDataStorage) SpeakersById(hexIds []string) ([]*Speaker, error) {
 	speakers := make([]*Speaker, 0)
 	for _, id := range hexIds {
-		log.Println(id)
 		s := &Speaker{}
 		err := m.mgoSpeakers.FindId(bson.ObjectIdHex(id)).One(s)
 		if err != nil {

@@ -106,13 +106,18 @@ func TestInserCompleteEvent(t *testing.T) {
 
 	sessions := make([]Session, 0)
 
-	for _, room := range rooms {
+	for index, room := range rooms {
 		sessionBegin := startTime
 		for sessionBegin.Unix() < startTime.Add(time.Duration(8)*time.Hour).Unix() {
 			//Add some time
 			sessionEnd := sessionBegin.Add(time.Duration(rand.Intn(80)) * time.Minute)
 
 			session := Session{}
+			if index%4 == 0 {
+				session.HasDetail = false
+			} else {
+				session.HasDetail = true
+			}
 			session.Name = fmt.Sprintf("%s %s", dataLang[rand.Intn(len(dataLang)-1)], dataSessionType[rand.Intn(len(dataSessionType)-1)])
 			session.From = sessionBegin.Unix()
 			session.To = sessionEnd.Unix()

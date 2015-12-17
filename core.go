@@ -108,7 +108,7 @@ func main() {
 
 func logrusLogger() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		log.Infof("%s:%s from %s", c.Request.Method, c.Request.URL.String(), c.Request.RemoteAddr)
+		log.Infof("%s:%s from %s", c.Request.Method, c.Request.URL.String(), c.Request.Header.Get("X-Forwarded-For"))
 	}
 }
 
@@ -119,26 +119,38 @@ func eventWebsockHandler(c *gin.Context) {
 
 	conn, err := wsupgrader.Upgrade(c.Writer, c.Request, nil)
 	if err != nil {
-		fmt.Println("Failed to set websocket upgrade: %+v", err)
+		log.Errorf("Failed to set websocket upgrade: %+v", err)
 		return
 	}
 
+	updateErr := notifyChangeForConnection(conn, eventToken, sessitonToken)
+	if updateErr != nil {
+		log.Errorln(updateErr)
+	}
 	commMan.RegisterConnection(eventToken, sessitonToken, conn)
 }
 
 func voteQuestion(c *gin.Context) {
 	questionID := c.Params.ByName("questionID")
+
+	log.Infof("voteQuestion: voting question %s", questionID)
+
 	err := mongo.VoteQuestion(questionID)
 	if err != nil {
+		log.Errorln(err)
 		c.JSON(405, "Event not exist")
 		return
 	}
 	q, qerr := mongo.QuestionById(questionID)
 	if qerr != nil {
+		log.Errorln(qerr)
 		c.JSON(405, "Event not exist")
 		return
 	}
-	notifyChange(q.EventToken, q.SessionToken)
+	updateErr := notifyChange(q.EventToken, q.SessionToken)
+	if updateErr != nil {
+		log.Errorln(updateErr)
+	}
 	c.JSON(200, "OK")
 }
 
@@ -146,18 +158,24 @@ func postQuestion(c *gin.Context) {
 	question := &Question{}
 	err := c.BindJSON(question)
 	if err != nil {
-		log.Println(err)
+		log.Errorln(err)
 		c.JSON(405, "Cannot store the question")
 		return
 	}
 
+	log.Infof("postQuestion: posting question %s", question)
+
 	_, err = mongo.EventByToken(question.EventToken)
 	if err != nil {
+		log.Errorln(err)
 		c.JSON(405, "Event not exist")
 		return
 	}
 	mongo.InsertQuestion(question)
-	notifyChange(question.EventToken, question.SessionToken)
+	updateErr := notifyChange(question.EventToken, question.SessionToken)
+	if updateErr != nil {
+		log.Errorln(updateErr)
+	}
 	c.JSON(200, "OK")
 }
 
@@ -174,6 +192,18 @@ func notifyChange(eventToken, sessionToken string) error {
 	}
 }
 
+func notifyChangeForConnection(conn *websocket.Conn, eventToken, sessionToken string) error {
+	questions, err := mongo.QuestionsByEventAndSession(eventToken, sessionToken)
+	if err != nil {
+		return err
+	}
+	sendErr := conn.WriteJSON(questions)
+	if sendErr != nil {
+		return sendErr
+	}
+	return nil
+}
+
 // Event handlers
 
 type eventHandlerFunc func(c *gin.Context, event *Event)
@@ -183,7 +213,7 @@ func upsertEvent(handler eventHandlerFunc) gin.HandlerFunc {
 		event := &Event{}
 		err := c.BindJSON(event)
 		if err != nil {
-			log.Println(err)
+			log.Errorln(err)
 			c.JSON(http.StatusBadRequest, "Malformed json object")
 			return
 		}
@@ -192,9 +222,10 @@ func upsertEvent(handler eventHandlerFunc) gin.HandlerFunc {
 }
 
 func insertEvent(c *gin.Context, event *Event) {
+	log.Infof("insertEvent : inserting event %s", event)
 	err := mongo.InsertEvent(event)
 	if err != nil {
-		log.Println(err)
+		log.Errorln(err)
 		c.JSON(http.StatusInternalServerError, "Cannot import event")
 		return
 	}
@@ -202,9 +233,10 @@ func insertEvent(c *gin.Context, event *Event) {
 }
 
 func updateEvent(c *gin.Context, event *Event) {
+	log.Infof("updateEvent : inserting event %s", event)
 	err := mongo.UpdateEvent(event)
 	if err != nil {
-		log.Println(err)
+		log.Errorln(err)
 		c.JSON(http.StatusInternalServerError, "Cannot update event")
 		return
 	}
@@ -213,8 +245,12 @@ func updateEvent(c *gin.Context, event *Event) {
 
 func getEvent(c *gin.Context) {
 	eventToken := c.Params.ByName("eventtoken")
+
+	log.Infof("getEvent : getting event %s", eventToken)
+
 	event, err := mongo.EventByToken(eventToken)
 	if err != nil {
+		log.Errorln(err)
 		c.JSON(405, "Event not exist")
 		return
 	}
@@ -223,7 +259,7 @@ func getEvent(c *gin.Context) {
 	speakers, spErr := mongo.SpeakersById(event.Speakers)
 	if spErr != nil {
 		humanError := fmt.Sprintf("Speaker not found reason: %s", spErr.Error())
-		log.Errorf(humanError)
+		log.Errorln(humanError)
 		c.JSON(500, fmt.Sprintf("Speaker not found reason: %s", spErr.Error()))
 		return
 	}

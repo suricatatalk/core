@@ -22,6 +22,7 @@ const (
 	// variable for logging with loggly
 	KeyLogly = "LOGLY_TOKEN"
 
+	// TokenHeader is header with auth informations
 	TokenHeader = "X-AUTH"
 )
 
@@ -51,7 +52,7 @@ func main() {
 	loadConfiguration(appCfg, mgoCfg, etcdCfg)
 
 	var registryErr error
-	log.Infoln("Initializing service discovery client for %s", appCfg.Name)
+	log.Infof("Initializing service discovery client for %s", appCfg.Name)
 	registryConfig.InstanceName = appCfg.Name
 	registryConfig.BaseURL = fmt.Sprintf("%s:%s", appCfg.Host, appCfg.Port)
 	registryConfig.EtcdEndpoints = []string{etcdCfg.Endpoint}
@@ -61,7 +62,7 @@ func main() {
 	}
 	registryClient.Register()
 
-	log.Infoln("Initializing mongo storage")
+	log.Infoln("Initializing mongo storage with credentials %s , %s", mgoCfg.URI, mgoCfg.DB)
 	localMgo := NewMgoStorage()
 	localMgo.connectionString = mgoCfg.URI
 	localMgo.database = mgoCfg.DB
@@ -113,13 +114,13 @@ func logrusLogger() gin.HandlerFunc {
 }
 
 func eventWebsockHandler(c *gin.Context) {
-	log.Printf("Receiving WS request {}", c.Request.Header)
+	log.Printf("Receiving WS request %s", c.Request.Header)
 	eventToken := c.Params.ByName("eventtoken")
 	sessitonToken := c.Params.ByName("session")
 
 	conn, err := wsupgrader.Upgrade(c.Writer, c.Request, nil)
 	if err != nil {
-		log.Errorf("Failed to set websocket upgrade: %+v", err)
+		log.Errorf("Failed to set websocket upgrade: %v", err)
 		return
 	}
 
@@ -185,11 +186,10 @@ func notifyChange(eventToken, sessionToken string) error {
 		return err
 	}
 	errSlice := notifier.SendJsonByEventAndSessionToken(eventToken, sessionToken, questions)
-	if len(errSlice) == 0 {
-		return nil
-	} else {
+	if len(errSlice) > 0 {
 		return errors.New("Err while sending update")
 	}
+	return nil
 }
 
 func notifyChangeForConnection(conn *websocket.Conn, eventToken, sessionToken string) error {
@@ -205,7 +205,6 @@ func notifyChangeForConnection(conn *websocket.Conn, eventToken, sessionToken st
 }
 
 // Event handlers
-
 type eventHandlerFunc func(c *gin.Context, event *Event)
 
 func upsertEvent(handler eventHandlerFunc) gin.HandlerFunc {

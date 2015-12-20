@@ -76,7 +76,7 @@ type EventStorage interface {
 type QuestionStorage interface {
 	InsertQuestion(question *Question) error
 	QuestionById(questionID string) (*Question, error)
-	VoteQuestion(questionID string) error
+	VoteQuestion(questionID string, incBy int) error
 	QuestionsByEventAndSession(eventtoken, sessionToken string) ([]Question, error)
 }
 
@@ -211,8 +211,8 @@ func (m *MgoDataStorage) InsertQuestion(question *Question) error {
 	return m.mgoQuestions.Insert(question)
 }
 
-func (m *MgoDataStorage) VoteQuestion(questionId string) error {
-	return m.mgoQuestions.UpdateId(bson.ObjectIdHex(questionId), bson.M{"$inc": bson.M{"vote": 1}})
+func (m *MgoDataStorage) VoteQuestion(questionId string, incBy int) error {
+	return m.mgoQuestions.UpdateId(bson.ObjectIdHex(questionId), bson.M{"$inc": bson.M{"vote": incBy}})
 }
 
 func (m *MgoDataStorage) QuestionById(questionID string) (*Question, error) {

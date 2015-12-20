@@ -91,6 +91,7 @@ func main() {
 
 	//Public
 	r.POST("/question/:questionID", voteQuestion)
+	r.DELETE("/question/:questionID", voteQuestion)
 	r.POST("/question", postQuestion)
 	r.GET("/event/:eventtoken/:session", eventWebsockHandler)
 	r.GET("/event/:eventtoken", getEvent)
@@ -136,7 +137,12 @@ func voteQuestion(c *gin.Context) {
 
 	log.Infof("voteQuestion: voting question %s", questionID)
 
-	err := mongo.VoteQuestion(questionID)
+	incBy := 1
+	if c.Request.Method == "DELETE" {
+		incBy = -1
+	}
+	err := mongo.VoteQuestion(questionID, incBy)
+
 	if err != nil {
 		log.Errorln(err)
 		c.JSON(405, "Event not exist")

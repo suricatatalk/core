@@ -158,7 +158,7 @@ func voteQuestion(c *gin.Context) {
 	if updateErr != nil {
 		log.Errorln(updateErr)
 	}
-	c.JSON(200, "OK")
+	c.JSON(200, q)
 }
 
 func postQuestion(c *gin.Context) {
@@ -183,7 +183,7 @@ func postQuestion(c *gin.Context) {
 	if updateErr != nil {
 		log.Errorln(updateErr)
 	}
-	c.JSON(200, "OK")
+	c.JSON(200, question)
 }
 
 func notifyChange(eventToken, sessionToken string) error {

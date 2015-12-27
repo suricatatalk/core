@@ -222,6 +222,14 @@ func upsertEvent(handler eventHandlerFunc) gin.HandlerFunc {
 			c.JSON(http.StatusBadRequest, "Malformed json object")
 			return
 		}
+
+		err = ValidateEvent(event)
+		if err != nil {
+			log.Errorln(err)
+			c.JSON(http.StatusBadRequest, "Event not valid")
+			return
+		}
+
 		handler(c, event)
 	}
 }

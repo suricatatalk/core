@@ -101,7 +101,7 @@ func TestValidateSessionInSequence(t *testing.T) {
 	session := Session{
 		Room:         "U51/202",
 		Name:         "Test session",
-		Speaker:      []string{"123456"},
+		Speaker:      []string{"111"},
 		Description:  "This is test",
 		SessionToken: "XYZ",
 		From:         now.Unix(),
@@ -111,7 +111,7 @@ func TestValidateSessionInSequence(t *testing.T) {
 	session2 := Session{
 		Room:         "U51/207",
 		Name:         "Test session",
-		Speaker:      []string{"123456"},
+		Speaker:      []string{"111"},
 		Description:  "This is test",
 		SessionToken: "XYZ",
 		From:         now.Unix(),
@@ -130,7 +130,7 @@ func TestValidateSessionInSequence(t *testing.T) {
 	session3 := Session{
 		Room:         "U51/207",
 		Name:         "Test session",
-		Speaker:      []string{"123456"},
+		Speaker:      []string{"111"},
 		Description:  "This is test",
 		SessionToken: "XYZ",
 		From:         now.Unix(),

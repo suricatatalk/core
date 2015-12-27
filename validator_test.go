@@ -89,6 +89,7 @@ func TestValidateSessionInSequence(t *testing.T) {
 		FromDate:   now.Unix(),
 		ToDate:     now.Add(time.Duration(8) * time.Hour).Unix(),
 		CreatedBy:  "sohlich@gmail.com",
+		Speakers:   []string{"111", "222", "333"},
 	}
 
 	rooms := []Room{
@@ -140,6 +141,53 @@ func TestValidateSessionInSequence(t *testing.T) {
 
 	if err != nil {
 		t.Error("Validator failed")
+	}
+
+}
+
+func TestValidateSessionSpeakers(t *testing.T) {
+	now := time.Now()
+
+	event := &Event{
+		ID:         bson.NewObjectId(),
+		EventToken: "",
+		Name:       "Open Zlin Fake Conference",
+		FromDate:   now.Unix(),
+		ToDate:     now.Add(time.Duration(8) * time.Hour).Unix(),
+		CreatedBy:  "sohlich@gmail.com",
+		Speakers:   []string{"111", "222", "333"},
+	}
+
+	rooms := []Room{
+		{"U51/202", "#00ffff", "", "Workshop lab"},
+		{"U51/109", "#56167d", "", "Conference room"},
+		{"U51/207", "#89b524", "", "Presentation room"},
+	}
+
+	session := Session{
+		Room:         "U51/202",
+		Name:         "Test session",
+		Speaker:      []string{"111"},
+		Description:  "This is test",
+		SessionToken: "XYZ",
+		From:         now.Unix(),
+		To:           now.Add(1 * time.Hour).Unix(),
+	}
+
+	event.Rooms = rooms
+	event.Sessions = []Session{session}
+
+	err := ValidateEvent(event)
+	if err != nil {
+		t.Error("Validator failed to validate speakers")
+		return
+	}
+
+	// Change speaker definitions
+	event.Speakers = []string{"222"}
+	err = ValidateEvent(event)
+	if err == nil {
+		t.Error(err)
 	}
 
 }

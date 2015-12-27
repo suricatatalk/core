@@ -36,6 +36,22 @@ type Session struct {
 	HasDetail    bool     `json:"hasDetail"`
 }
 
+// Sessions struct serves as
+// struct for sort interface
+type Sessions []Session
+
+func (slice Sessions) Len() int {
+	return len(slice)
+}
+
+func (slice Sessions) Less(i, j int) bool {
+	return slice[i].From < slice[j].From
+}
+
+func (slice Sessions) Swap(i, j int) {
+	slice[i], slice[j] = slice[j], slice[i]
+}
+
 type Room struct {
 	Name        string `json:"name"`
 	Tint        string `json:"tint"`

@@ -1,16 +1,20 @@
 package main
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
+	"net/url"
+	"strings"
 	"time"
 
 	"github.com/Sirupsen/logrus"
 	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"
-	"github.com/itsjamie/gin-cors"
+	"github.com/nats-io/nats"
 	"github.com/sohlich/etcd_discovery"
+	"github.com/sohlich/natsproxy"
 )
 
 const (
@@ -76,36 +80,43 @@ func main() {
 		log.Panicln(err)
 	}
 
-	r := gin.Default()
-	log.Infoln("Configuring CORS Middleware")
-	r.Use(logrusLogger())
-	r.Use(cors.Middleware(cors.Config{
-		Origins:         "*",
-		Methods:         "GET, PUT, POST, DELETE",
-		RequestHeaders:  "Origin, Authorization, Content-Type, X-AUTH",
-		ExposedHeaders:  "",
-		MaxAge:          50 * time.Second,
-		Credentials:     true,
-		ValidateHeaders: false,
-	}))
+	clientConn, _ := nats.Connect(nats.DefaultURL)
+	defer clientConn.Close()
+	natsClient := natsproxy.NewNatsClient(clientConn)
+	natsClient.GET("/event/*", getEvent)
 
-	//Public
-	r.POST("/question/:questionID", voteQuestion)
-	r.DELETE("/question/:questionID", voteQuestion)
-	r.POST("/question", postQuestion)
-	r.GET("/event/:eventtoken/:session", eventWebsockHandler)
-	r.GET("/event/:eventtoken", getEvent)
-	r.GET("/speaker/:speakerID", getSpeaker)
+	time.Sleep(10 * time.Minute)
+
+	// r := gin.Default()
+	// log.Infoln("Configuring CORS Middleware")
+	// r.Use(logrusLogger())
+	// r.Use(cors.Middleware(cors.Config{
+	// 	Origins:         "*",
+	// 	Methods:         "GET, PUT, POST, DELETE",
+	// 	RequestHeaders:  "Origin, Authorization, Content-Type, X-AUTH",
+	// 	ExposedHeaders:  "",
+	// 	MaxAge:          50 * time.Second,
+	// 	Credentials:     true,
+	// 	ValidateHeaders: false,
+	// }))
+
+	// //Public
+	// r.POST("/question/:questionID", voteQuestion)
+	// r.DELETE("/question/:questionID", voteQuestion)
+	// r.POST("/question", postQuestion)
+	// r.GET("/event/:eventtoken/:session", eventWebsockHandler)
+	// r.GET("/event/:eventtoken", getEvent)
+	// r.GET("/speaker/:speakerID", getSpeaker)
 	//Admin
-	authReqi := r.Group("/")
-	authReqi.Use(authToken)
-	authReqi.POST("/event", upsertEvent(insertEvent))
-	authReqi.PUT("/event", upsertEvent(updateEvent))
-	authReqi.POST("/speaker", upsertSpeaker(insertSpeaker))
-	authReqi.PUT("/speaker", upsertSpeaker(updateSpeaker))
+	// authReqi := r.Group("/")
+	// authReqi.Use(authToken)
+	// authReqi.POST("/event", upsertEvent(insertEvent))
+	// authReqi.PUT("/event", upsertEvent(updateEvent))
+	// authReqi.POST("/speaker", upsertSpeaker(insertSpeaker))
+	// authReqi.PUT("/speaker", upsertSpeaker(updateSpeaker))
 
-	bind := fmt.Sprintf(":%s", appCfg.Port)
-	r.Run(bind)
+	// bind := fmt.Sprintf(":%s", appCfg.Port)
+	// r.Run(bind)
 }
 
 func logrusLogger() gin.HandlerFunc {
@@ -256,15 +267,24 @@ func updateEvent(c *gin.Context, event *Event) {
 	c.JSON(http.StatusOK, event)
 }
 
-func getEvent(c *gin.Context) {
-	eventToken := c.Params.ByName("eventtoken")
-
+func getEvent(c *natsproxy.Context) {
+	URL, err := url.Parse(c.Request.URL)
+	log.Println(URL.Path)
+	if err != nil {
+		c.Abort()
+		return
+	}
+	eventToken, parseErr := getPathVariableAtPlace(URL.Path, 1)
+	if parseErr != nil {
+		c.Abort()
+		return
+	}
 	log.Infof("getEvent : getting event %s", eventToken)
 
 	event, err := mongo.EventByToken(eventToken)
 	if err != nil {
 		log.Errorln(err)
-		c.JSON(405, "Event not exist")
+		c.Response.StatusCode = 400
 		return
 	}
 
@@ -273,7 +293,7 @@ func getEvent(c *gin.Context) {
 	if spErr != nil {
 		humanError := fmt.Sprintf("Speaker not found reason: %s", spErr.Error())
 		log.Errorln(humanError)
-		c.JSON(500, fmt.Sprintf("Speaker not found reason: %s", spErr.Error()))
+		c.Response.StatusCode = 500
 		return
 	}
 
@@ -287,7 +307,13 @@ func getEvent(c *gin.Context) {
 	}
 
 	log.Infoln("Event in response %v", output)
-	c.JSON(200, output)
+	bytes, serializeErr := json.Marshal(output)
+	if serializeErr == nil {
+		c.Response.StatusCode = 200
+		c.Response.Body = bytes
+	} else {
+		c.Response.StatusCode = 500
+	}
 }
 
 // Speakers handlers
@@ -335,4 +361,12 @@ func getSpeaker(c *gin.Context) {
 		return
 	}
 	c.JSON(200, event)
+}
+
+func getPathVariableAtPlace(url string, place int) (string, error) {
+	parsedPath := strings.Split(url[1:], "/")
+	if len(parsedPath) < place {
+		return "", fmt.Errorf("Variable not found")
+	}
+	return parsedPath[place], nil
 }

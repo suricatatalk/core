@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"net/url"
 	"strings"
 	"time"
 
@@ -83,30 +82,17 @@ func main() {
 	clientConn, _ := nats.Connect(nats.DefaultURL)
 	defer clientConn.Close()
 	natsClient := natsproxy.NewNatsClient(clientConn)
-	natsClient.GET("/event/*", getEvent)
+	natsClient.Use(Logger)
+	natsClient.POST("/question/>", voteQuestion)
+	natsClient.DELETE("/question/>", voteQuestion)
+	natsClient.POST("/question", postQuestion)
+	natsClient.GET("/event/>", getEvent)
+	natsClient.GET("/speaker/>", getSpeaker)
 
 	time.Sleep(10 * time.Minute)
 
-	// r := gin.Default()
-	// log.Infoln("Configuring CORS Middleware")
-	// r.Use(logrusLogger())
-	// r.Use(cors.Middleware(cors.Config{
-	// 	Origins:         "*",
-	// 	Methods:         "GET, PUT, POST, DELETE",
-	// 	RequestHeaders:  "Origin, Authorization, Content-Type, X-AUTH",
-	// 	ExposedHeaders:  "",
-	// 	MaxAge:          50 * time.Second,
-	// 	Credentials:     true,
-	// 	ValidateHeaders: false,
-	// }))
-
 	// //Public
-	// r.POST("/question/:questionID", voteQuestion)
-	// r.DELETE("/question/:questionID", voteQuestion)
-	// r.POST("/question", postQuestion)
 	// r.GET("/event/:eventtoken/:session", eventWebsockHandler)
-	// r.GET("/event/:eventtoken", getEvent)
-	// r.GET("/speaker/:speakerID", getSpeaker)
 	//Admin
 	// authReqi := r.Group("/")
 	// authReqi.Use(authToken)
@@ -119,10 +105,8 @@ func main() {
 	// r.Run(bind)
 }
 
-func logrusLogger() gin.HandlerFunc {
-	return func(c *gin.Context) {
-		log.Infof("%s:%s from %s", c.Request.Method, c.Request.URL.String(), c.Request.Header.Get("X-Forwarded-For"))
-	}
+func Logger(c *natsproxy.Context) {
+	log.Infof("%s:%s from %s", c.Request.Method, c.Request.URL, c.Request.Header.Get("X-Forwarded-For"))
 }
 
 func eventWebsockHandler(c *gin.Context) {
@@ -143,8 +127,8 @@ func eventWebsockHandler(c *gin.Context) {
 	commMan.RegisterConnection(eventToken, sessitonToken, conn)
 }
 
-func voteQuestion(c *gin.Context) {
-	questionID := c.Params.ByName("questionID")
+func voteQuestion(c *natsproxy.Context) {
+	questionID := c.Request.Form.Get("questionID")
 
 	log.Infof("voteQuestion: voting question %s", questionID)
 
@@ -172,7 +156,7 @@ func voteQuestion(c *gin.Context) {
 	c.JSON(200, q)
 }
 
-func postQuestion(c *gin.Context) {
+func postQuestion(c *natsproxy.Context) {
 	question := &Question{}
 	err := c.BindJSON(question)
 	if err != nil {
@@ -268,13 +252,7 @@ func updateEvent(c *gin.Context, event *Event) {
 }
 
 func getEvent(c *natsproxy.Context) {
-	URL, err := url.Parse(c.Request.URL)
-	log.Println(URL.Path)
-	if err != nil {
-		c.Abort()
-		return
-	}
-	eventToken, parseErr := getPathVariableAtPlace(URL.Path, 1)
+	eventToken, parseErr := getPathVariableAtPlace(c.Request.URL, 1)
 	if parseErr != nil {
 		c.Abort()
 		return
@@ -353,8 +331,12 @@ func updateSpeaker(c *gin.Context, speaker *Speaker) {
 	c.JSON(http.StatusOK, speaker)
 }
 
-func getSpeaker(c *gin.Context) {
-	speakerID := c.Params.ByName("speakerID")
+func getSpeaker(c *natsproxy.Context) {
+	speakerID, parseErr := getPathVariableAtPlace(c.Request.URL, 1)
+	if parseErr != nil {
+		c.Abort()
+		return
+	}
 	event, err := mongo.SpeakerById(speakerID)
 	if err != nil {
 		c.JSON(405, "Speaker not exist")

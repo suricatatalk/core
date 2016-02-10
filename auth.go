@@ -3,22 +3,25 @@ package main
 import (
 	"encoding/json"
 
-	"github.com/gin-gonic/gin"
+	"github.com/sohlich/natsproxy"
 	"github.com/suricatatalk/gate/auth"
 )
 
-func authToken(c *gin.Context) {
+func authToken(c *natsproxy.Context) {
 	token := c.Request.Header.Get(TokenHeader)
+	log.Info(token)
 	if len(token) == 0 {
 		log.Error("Token header not found")
-		c.AbortWithStatus(401)
+		c.JSON(401, "Not authenticated")
+		c.Abort()
 		return
 	}
 
 	user, err := auth.DecodeJwtToken(token)
 	if err != nil {
 		log.Errorf("Jwt token cannot be decoded %s", err)
-		c.AbortWithStatus(403)
+		c.JSON(403, "Access forbidden")
+		c.Abort()
 		return
 	}
 	userJSON, _ := json.Marshal(user)

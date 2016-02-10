@@ -20,7 +20,7 @@ const (
 	// ServiceName defines the service type
 	// that will be registered in etcd service registry
 	ServiceName = "core"
-
+	Version     = 0.1
 	// KeyLogly is a enviromental
 	// variable for logging with loggly
 	KeyLogly = "LOGLY_TOKEN"
@@ -81,31 +81,42 @@ func main() {
 
 	clientConn, _ := nats.Connect(nats.DefaultURL)
 	defer clientConn.Close()
-	natsClient := natsproxy.NewNatsClient(clientConn)
-	natsClient.Use(Logger)
+	natsClient, natsErr := natsproxy.NewNatsClient(clientConn)
+	if natsErr != nil {
+		log.Fatal(natsErr)
+	}
+	natsClient.Use(logger)
 	natsClient.POST("/question/>", voteQuestion)
 	natsClient.DELETE("/question/>", voteQuestion)
 	natsClient.POST("/question", postQuestion)
-	natsClient.GET("/event/>", getEvent)
-	natsClient.GET("/speaker/>", getSpeaker)
-
-	time.Sleep(10 * time.Minute)
+	natsClient.GET("/event/:eventToken", getEvent)
+	natsClient.GET("/speaker/:speakerId", getSpeaker)
 
 	// //Public
 	// r.GET("/event/:eventtoken/:session", eventWebsockHandler)
+
 	//Admin
-	// authReqi := r.Group("/")
 	// authReqi.Use(authToken)
 	// authReqi.POST("/event", upsertEvent(insertEvent))
 	// authReqi.PUT("/event", upsertEvent(updateEvent))
-	// authReqi.POST("/speaker", upsertSpeaker(insertSpeaker))
+	natsClient.POST("/speaker", SecuredHandler(upsertSpeaker(insertSpeaker)))
 	// authReqi.PUT("/speaker", upsertSpeaker(updateSpeaker))
 
 	// bind := fmt.Sprintf(":%s", appCfg.Port)
 	// r.Run(bind)
+	time.Sleep(10 * time.Minute)
 }
 
-func Logger(c *natsproxy.Context) {
+func SecuredHandler(handler natsproxy.NatsHandler) natsproxy.NatsHandler {
+	return func(c *natsproxy.Context) {
+		authToken(c)
+		if !c.IsAborted() {
+			handler(c)
+		}
+	}
+}
+
+func logger(c *natsproxy.Context) {
 	log.Infof("%s:%s from %s", c.Request.Method, c.Request.URL, c.Request.Header.Get("X-Forwarded-For"))
 }
 
@@ -252,8 +263,8 @@ func updateEvent(c *gin.Context, event *Event) {
 }
 
 func getEvent(c *natsproxy.Context) {
-	eventToken, parseErr := getPathVariableAtPlace(c.Request.URL, 1)
-	if parseErr != nil {
+	eventToken := c.PathVariable("eventToken")
+	if len(eventToken) == 0 {
 		c.Abort()
 		return
 	}
@@ -296,36 +307,36 @@ func getEvent(c *natsproxy.Context) {
 
 // Speakers handlers
 
-type speakerHandlerFunc func(c *gin.Context, speaker *Speaker)
+type speakerHandlerFunc func(c *natsproxy.Context, speaker *Speaker)
 
-func upsertSpeaker(handler speakerHandlerFunc) gin.HandlerFunc {
-	return func(c *gin.Context) {
+func upsertSpeaker(handler speakerHandlerFunc) natsproxy.NatsHandler {
+	return func(c *natsproxy.Context) {
 		speaker := &Speaker{}
 		err := c.BindJSON(speaker)
 		if err != nil {
 			log.Errorln(err)
-			c.AbortWithStatus(405)
+			c.JSON(405, "Cannot retrieve speaker")
 			return
 		}
 		handler(c, speaker)
 	}
 }
 
-func insertSpeaker(c *gin.Context, speaker *Speaker) {
+func insertSpeaker(c *natsproxy.Context, speaker *Speaker) {
 	err := mongo.InsertSpeaker(speaker)
 	if err != nil {
 		log.Errorln(err)
-		c.AbortWithError(500, err)
+		c.JSON(500, err)
 		return
 	}
 	c.JSON(http.StatusOK, speaker)
 }
 
-func updateSpeaker(c *gin.Context, speaker *Speaker) {
+func updateSpeaker(c *natsproxy.Context, speaker *Speaker) {
 	err := mongo.UpdateSpeaker(speaker)
 	if err != nil {
 		log.Errorln(err)
-		c.AbortWithError(500, err)
+		c.JSON(500, err)
 		return
 	}
 	c.JSON(http.StatusOK, speaker)
